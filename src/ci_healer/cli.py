@@ -56,7 +56,7 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
 
 
 def _log(line: str) -> None:
-    console.print(line)
+    console.print(line, markup=False, highlight=False)
 
 
 if __name__ == "__main__":
