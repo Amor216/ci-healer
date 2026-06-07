@@ -4,6 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from rich.console import Console
+from rich.syntax import Syntax
 
 from . import patch
 from .orchestrator import heal
@@ -39,6 +40,17 @@ def main(argv: list[str] | None = None) -> int:
         out.write_text(diff, encoding="utf-8")
         console.print(f"\n[dim]patch written: {out}[/dim]")
 
+        if args.review and sys.stdin.isatty():
+            console.print()
+            console.print(Syntax(diff, "diff", theme="ansi_dark", word_wrap=True))
+            console.print()
+            answer = input("apply this patch? [Y/n] ").strip().lower()
+            if answer in ("n", "no"):
+                if patch.revert_working_tree(repo):
+                    console.print("[yellow]reverted working tree; patch kept in healer.patch[/yellow]")
+                else:
+                    console.print("[red]revert failed — repo is left modified[/red]")
+
     return 0 if result.ok else 1
 
 
@@ -51,6 +63,8 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     fx.add_argument("--cmd", required=True, help="the failing command, e.g. 'pytest' or 'npm test'")
     fx.add_argument("--max-iters", type=int, default=5, dest="max_iters")
     fx.add_argument("--out", default="./healer.patch", help="where to write the patch")
+    fx.add_argument("--review", action="store_true",
+                    help="show the diff and prompt before keeping the changes")
 
     return p.parse_args(argv)
 

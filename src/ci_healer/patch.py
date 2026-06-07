@@ -31,3 +31,13 @@ def capture_diff(workdir: Path) -> str:
         cwd=workdir, capture_output=True, text=True, check=False,
     )
     return r.stdout
+
+
+def revert_working_tree(workdir: Path) -> bool:
+    if not git_available() or not (workdir / ".git").exists():
+        return False
+    r = subprocess.run(
+        ["git", "checkout", "--", "."],
+        cwd=workdir, capture_output=True, check=False,
+    )
+    return r.returncode == 0
