@@ -1,0 +1,82 @@
+name: ci-healer
+description: Run ci-healer against a failing build, upload the patch as an artifact
+author: Amor216
+branding:
+  icon: tool
+  color: orange
+
+inputs:
+  cmd:
+    description: Command that produces the failing build (e.g. "pytest", "npm test")
+    required: true
+  repo:
+    description: Path to the project root (default repo checkout)
+    required: false
+    default: "."
+  max-iters:
+    description: Heal-loop iteration cap
+    required: false
+    default: "5"
+  max-budget:
+    description: Stop the loop if Anthropic spend (USD) crosses this cap
+    required: false
+    default: ""
+  anthropic-api-key:
+    description: API key for Claude. Pass as a secret.
+    required: true
+  python-version:
+    description: Python version used to install ci-healer
+    required: false
+    default: "3.12"
+
+outputs:
+  patch-path:
+    description: Path to healer.patch (empty if no changes were produced)
+    value: ${{ steps.heal.outputs.patch-path }}
+  ok:
+    description: "true if the heal succeeded"
+    value: ${{ steps.heal.outputs.ok }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install uv
+      shell: bash
+      run: pipx install uv || pip install --user uv
+
+    - name: Install ci-healer
+      shell: bash
+      run: uv tool install --from "git+https://github.com/Amor216/ci-healer-agent" ci-healer
+
+    - name: Heal
+      id: heal
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+      run: |
+        budget_flag=""
+        if [ -n "${{ inputs.max-budget }}" ]; then
+          budget_flag="--max-budget ${{ inputs.max-budget }}"
+        fi
+        if ci-healer fix "${{ inputs.repo }}" \
+            --cmd "${{ inputs.cmd }}" \
+            --max-iters "${{ inputs.max-iters }}" \
+            --out "${{ inputs.repo }}/healer.patch" \
+            $budget_flag; then
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+        fi
+        echo "patch-path=${{ inputs.repo }}/healer.patch" >> "$GITHUB_OUTPUT"
+
+    - name: Upload patch
+      if: hashFiles(format('{0}/healer.patch', inputs.repo)) != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: healer-patch
+        path: ${{ inputs.repo }}/healer.patch

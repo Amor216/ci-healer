@@ -15,13 +15,23 @@ def cost_usd(model: str, in_tok: int, out_tok: int) -> float:
     return 0.0
 
 
+class BudgetExceeded(Exception):
+    def __init__(self, spent: float, cap: float) -> None:
+        super().__init__(f"budget exceeded: spent ${spent:.4f} > cap ${cap:.4f}")
+        self.spent = spent
+        self.cap = cap
+
+
 @dataclass
 class CostTracker:
     by_model: dict[str, tuple[int, int]] = field(default_factory=dict)
+    max_usd: float | None = None
 
     def add(self, model: str, in_tok: int, out_tok: int) -> None:
         cur_in, cur_out = self.by_model.get(model, (0, 0))
         self.by_model[model] = (cur_in + in_tok, cur_out + out_tok)
+        if self.max_usd is not None and self.total_usd() > self.max_usd:
+            raise BudgetExceeded(self.total_usd(), self.max_usd)
 
     def total_usd(self) -> float:
         return sum(cost_usd(m, i, o) for m, (i, o) in self.by_model.items())

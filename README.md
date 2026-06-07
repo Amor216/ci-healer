@@ -35,6 +35,23 @@ total cost: $0.0483
 patch written: ./healer.patch
 ```
 
+## GitHub Action
+
+There is a composite action in `action/`. Drop it into a workflow that runs after a failing job:
+
+```yaml
+- name: Heal the build
+  if: failure()
+  uses: Amor216/ci-healer-agent/action@main
+  with:
+    cmd: pytest
+    max-iters: 5
+    max-budget: "0.50"
+    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+The patch is uploaded as a `healer-patch` artifact so a follow-up step (or a human) can review and apply it.
+
 ## Why a CLI, not a webhook server
 
 A webhook listener is more complex to set up, run, and demo. The interesting work is the agent loop: nothing about it requires HTTP. You can wire this into a CI runner (e.g. an Actions step that runs `ci-healer fix .` when a job fails) without changing the core.

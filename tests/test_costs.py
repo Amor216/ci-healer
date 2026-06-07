@@ -1,4 +1,6 @@
-from ci_healer.costs import CostTracker, cost_usd
+import pytest
+
+from ci_healer.costs import BudgetExceeded, CostTracker, cost_usd
 
 
 def test_pricing_known_models():
@@ -26,3 +28,15 @@ def test_tracker_lines_have_total():
     lines = c.lines()
     assert any("sonnet" in line for line in lines)
     assert any("total cost" in line for line in lines)
+
+
+def test_budget_cap_raises_when_exceeded():
+    c = CostTracker(max_usd=0.01)
+    with pytest.raises(BudgetExceeded):
+        c.add("claude-opus-4-5", 10_000, 10_000)
+
+
+def test_no_cap_is_unlimited():
+    c = CostTracker()
+    c.add("claude-opus-4-5", 1_000_000, 1_000_000)
+    assert c.total_usd() == 90.0

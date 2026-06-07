@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import coder, planner
-from .costs import CostTracker
+from .costs import BudgetExceeded, CostTracker
 from .verifier import VerifyResult, verify
 
 
@@ -28,8 +28,9 @@ def heal(
     cmd: str,
     max_iters: int = 5,
     log: Logger = _noop,
+    max_usd: float | None = None,
 ) -> HealResult:
-    cost = CostTracker()
+    cost = CostTracker(max_usd=max_usd)
     last: VerifyResult | None = None
     tried: set[str] = set()
 
@@ -43,7 +44,10 @@ def heal(
         _log_error_tail(log, last)
 
         log("[planner] reading repo and forming hypotheses")
-        hypotheses = planner.plan(workdir, last, cmd, cost)
+        try:
+            hypotheses = planner.plan(workdir, last, cmd, cost)
+        except BudgetExceeded as exc:
+            return HealResult(False, i + 1, str(exc), cost, last)
         if not hypotheses:
             return HealResult(False, i + 1, "planner produced no hypotheses", cost, last)
 
@@ -58,7 +62,10 @@ def heal(
         chosen = fresh[0]
         tried.add(chosen.summary)
         log(f"[coder] attempt {i + 1} of {max_iters}: {chosen.summary}")
-        summary, calls = coder.apply_hypothesis(workdir, chosen, last, cmd, cost)
+        try:
+            summary, calls = coder.apply_hypothesis(workdir, chosen, last, cmd, cost)
+        except BudgetExceeded as exc:
+            return HealResult(False, i + 1, str(exc), cost, last)
         log(f"[coder] {summary} ({calls} tool call(s))")
 
     return HealResult(False, max_iters, "max iterations reached", cost, last)

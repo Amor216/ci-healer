@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
 
     patch.init_baseline(repo)
 
-    result = heal(repo, args.cmd, max_iters=args.max_iters, log=_log)
+    result = heal(repo, args.cmd, max_iters=args.max_iters, log=_log, max_usd=args.max_budget)
 
     console.print()
     if result.ok:
@@ -65,6 +65,8 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     fx.add_argument("--out", default="./healer.patch", help="where to write the patch")
     fx.add_argument("--review", action="store_true",
                     help="show the diff and prompt before keeping the changes")
+    fx.add_argument("--max-budget", type=float, default=None, dest="max_budget",
+                    help="abort if cumulative cost in USD exceeds this cap")
 
     return p.parse_args(argv)
 
