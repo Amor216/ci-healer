@@ -26,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
 
     telemetry = Telemetry(path=Path(args.telemetry).expanduser().resolve()) if args.telemetry else None
     result = heal(repo, args.cmd, max_iters=args.max_iters, log=_log,
-                  max_usd=args.max_budget, telemetry=telemetry)
+                  max_usd=args.max_budget, telemetry=telemetry, sandbox=args.sandbox)
 
     console.print()
     if result.ok:
@@ -72,6 +72,8 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
                     help="abort if cumulative cost in USD exceeds this cap")
     fx.add_argument("--telemetry", default=None,
                     help="append per-attempt JSONL telemetry to this path")
+    fx.add_argument("--sandbox", default=None,
+                    help="run the verifier inside a sandbox, e.g. 'docker:python:3.12-slim'")
 
     return p.parse_args(argv)
 

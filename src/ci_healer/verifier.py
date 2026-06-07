@@ -1,3 +1,4 @@
+import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,10 +18,12 @@ class VerifyResult:
         return (self.stdout + self.stderr).strip()
 
 
-def verify(workdir: Path, cmd: str, timeout: int = 90) -> VerifyResult:
+def verify(workdir: Path, cmd: str, timeout: int = 90,
+           sandbox: str | None = None) -> VerifyResult:
+    exec_cmd = _wrap_sandbox(cmd, workdir, sandbox)
     try:
         r = subprocess.run(
-            cmd, shell=True, cwd=str(workdir),
+            exec_cmd, shell=True, cwd=str(workdir),
             capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired as e:
@@ -35,3 +38,21 @@ def verify(workdir: Path, cmd: str, timeout: int = 90) -> VerifyResult:
         stdout=r.stdout[-MAX_OUTPUT:],
         stderr=r.stderr[-MAX_OUTPUT:],
     )
+
+
+def _wrap_sandbox(cmd: str, workdir: Path, sandbox: str | None) -> str:
+    if not sandbox:
+        return cmd
+    if sandbox.startswith("docker:"):
+        image = sandbox[len("docker:"):]
+        if not image:
+            raise ValueError("sandbox 'docker:' requires an image, e.g. docker:python:3.12-slim")
+        mount = f"{workdir.resolve().as_posix()}:/repo"
+        return (
+            f"docker run --rm "
+            f"-v {shlex.quote(mount)} "
+            f"-w /repo "
+            f"{shlex.quote(image)} "
+            f"sh -c {shlex.quote(cmd)}"
+        )
+    raise ValueError(f"unknown sandbox scheme: {sandbox!r}")

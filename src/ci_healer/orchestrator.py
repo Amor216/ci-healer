@@ -31,6 +31,7 @@ def heal(
     log: Logger = _noop,
     max_usd: float | None = None,
     telemetry: Telemetry | None = None,
+    sandbox: str | None = None,
 ) -> HealResult:
     cost = CostTracker(max_usd=max_usd)
     tel = telemetry or Telemetry()
@@ -38,8 +39,8 @@ def heal(
     tried: set[str] = set()
 
     for i in range(max_iters):
-        log(f"[verifier] running {cmd}")
-        last = verify(workdir, cmd)
+        log(f"[verifier] running {cmd}" + (f" in {sandbox}" if sandbox else ""))
+        last = verify(workdir, cmd, sandbox=sandbox)
         if last.ok:
             log("[verifier] PASS")
             return HealResult(True, i, "tests pass", cost, last)
@@ -72,7 +73,7 @@ def heal(
             return HealResult(False, i + 1, str(exc), cost, last)
         log(f"[coder] {summary} ({calls} tool call(s))")
 
-        after = verify(workdir, cmd)
+        after = verify(workdir, cmd, sandbox=sandbox)
         tel.record(
             iteration=i + 1,
             hypothesis=chosen.summary,
