@@ -4,6 +4,7 @@ from pathlib import Path
 
 from . import coder, planner
 from .costs import BudgetExceeded, CostTracker
+from .telemetry import Telemetry
 from .verifier import VerifyResult, verify
 
 
@@ -29,8 +30,10 @@ def heal(
     max_iters: int = 5,
     log: Logger = _noop,
     max_usd: float | None = None,
+    telemetry: Telemetry | None = None,
 ) -> HealResult:
     cost = CostTracker(max_usd=max_usd)
+    tel = telemetry or Telemetry()
     last: VerifyResult | None = None
     tried: set[str] = set()
 
@@ -60,6 +63,7 @@ def heal(
             return HealResult(False, i + 1, "no new hypotheses to try", cost, last)
 
         chosen = fresh[0]
+        rank = hypotheses.index(chosen)
         tried.add(chosen.summary)
         log(f"[coder] attempt {i + 1} of {max_iters}: {chosen.summary}")
         try:
@@ -67,6 +71,21 @@ def heal(
         except BudgetExceeded as exc:
             return HealResult(False, i + 1, str(exc), cost, last)
         log(f"[coder] {summary} ({calls} tool call(s))")
+
+        after = verify(workdir, cmd)
+        tel.record(
+            iteration=i + 1,
+            hypothesis=chosen.summary,
+            rank=rank,
+            confidence=chosen.confidence,
+            tool_calls=calls,
+            fixed=after.ok,
+            exit_code=after.exit_code,
+        )
+        if after.ok:
+            log("[verifier] PASS")
+            return HealResult(True, i + 1, "tests pass", cost, after)
+        last = after
 
     return HealResult(False, max_iters, "max iterations reached", cost, last)
 

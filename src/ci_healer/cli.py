@@ -8,6 +8,7 @@ from rich.syntax import Syntax
 
 from . import patch
 from .orchestrator import heal
+from .telemetry import Telemetry
 
 console = Console()
 
@@ -23,7 +24,9 @@ def main(argv: list[str] | None = None) -> int:
 
     patch.init_baseline(repo)
 
-    result = heal(repo, args.cmd, max_iters=args.max_iters, log=_log, max_usd=args.max_budget)
+    telemetry = Telemetry(path=Path(args.telemetry).expanduser().resolve()) if args.telemetry else None
+    result = heal(repo, args.cmd, max_iters=args.max_iters, log=_log,
+                  max_usd=args.max_budget, telemetry=telemetry)
 
     console.print()
     if result.ok:
@@ -67,6 +70,8 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
                     help="show the diff and prompt before keeping the changes")
     fx.add_argument("--max-budget", type=float, default=None, dest="max_budget",
                     help="abort if cumulative cost in USD exceeds this cap")
+    fx.add_argument("--telemetry", default=None,
+                    help="append per-attempt JSONL telemetry to this path")
 
     return p.parse_args(argv)
 
