@@ -35,6 +35,25 @@ total cost: $0.0483
 patch written: ./healer.patch
 ```
 
+## Language support
+
+ci-healer is language-agnostic by design: it knows nothing about Python, npm, cargo, or Go. The verifier just runs whatever you pass as `--cmd`, captures stdout/stderr/exit code, and forwards the failure log to the planner. The coder edits files through tools that operate on raw bytes, not on a parser. Anything that produces a deterministic failure log works:
+
+```bash
+ci-healer fix . --cmd "pytest"
+ci-healer fix . --cmd "npm test"
+ci-healer fix . --cmd "cargo test --quiet"
+ci-healer fix . --cmd "go test ./..."
+ci-healer fix . --cmd "mvn -B test"
+ci-healer fix . --cmd "uv run pytest && ruff check ."
+```
+
+If the tooling isn't on the host, run inside Docker:
+
+```bash
+ci-healer fix . --cmd "cargo test --quiet" --sandbox docker:rust:1.83-slim
+```
+
 ## GitHub Action
 
 There is a composite action in `action/`. Drop it into a workflow that runs after a failing job:
